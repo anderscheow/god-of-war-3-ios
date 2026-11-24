@@ -26,7 +26,9 @@ env:
 
 jobs:
   ipa:
-    runs-on: macos-26
+    # The Xcode 27 image (macOS 27, iOS 27.0-27.2 SDKs; arm64 only): an iOS 27 SDK build is what gives
+    # iPhone Duo the full display, and what makes the scene life cycle mandatory (TN3187).
+    runs-on: xcode-27
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v5
@@ -35,6 +37,14 @@ jobs:
         uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: latest-stable
+
+      - name: Require the iOS 27.1+ SDK
+        # UIView.reservedRegions (the fold and camera, Gow3TouchControls.swift) is iOS 27.1, and so is
+        # iPhone Duo's full-display layout: stop here with a clear message, not deep in the build.
+        run: |
+          sdk=$(xcrun --sdk iphoneos --show-sdk-version)
+          echo "iOS SDK $sdk ($(xcodebuild -version | head -1))"
+          [ "$(printf '27.1\n%s\n' "$sdk" | sort -V | head -1)" = 27.1 ] || { echo "::error::iOS SDK $sdk is older than 27.1"; exit 1; }
 
       # The native core only changes with native/ or the FEX commit (or the compiler): restore
       # the finished archive and skip the FEX checkout and build when none of them changed.
@@ -122,6 +132,9 @@ jobs:
           # The executable must exist: a failed link still leaves a resource-only .app behind.
           test -f "../../build/xcode/Build/Products/$CONFIGURATION-iphoneos/gow3ios.app/gow3ios"
           ccache --show-stats || true
+
+      - name: Info.plist meets the iOS 27 SDK rules (scene life cycle, launch screen)
+        run: native/scripts/check-info-plist.sh "build/xcode/Build/Products/$CONFIGURATION-iphoneos/gow3ios.app"
 
       - name: JIT helper extension (StikJIT)
         run: |

@@ -8,6 +8,8 @@ declare class Gow3CoreModule extends NativeModule<{}> {
   /** CS_DEBUGGED is set (stays set after the debugger detaches). */
   isCsDebugged(): boolean;
   isStikDebugInstalled(): Promise<boolean>;
+  /** The app window's safe-area insets in points (they change as an iPhone Duo folds or rotates). New in 0.1.47. */
+  safeAreaInsets(): Promise<{ top: number; left: number; bottom: number; right: number }>;
   /** Opens StikDebug, waits for it, creates the JIT pool and detaches. Resolves 0 on success. */
   enableJit(poolMb: number): Promise<number>;
   /** Built-in JIT: whether this install can use it (iOS 26+, helper extension present) and is paired. */

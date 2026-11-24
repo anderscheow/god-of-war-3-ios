@@ -3,6 +3,7 @@ import { type ReactNode, useCallback, useEffect, useState } from 'react';
 import { AppState, Image, type ImageSourcePropType, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 
 import Gow3Core from './modules/gow3-core/src/Gow3CoreModule';
+import { useSafeAreaInsets } from './modules/gow3-core/src/useSafeAreaInsets';
 
 const APP_NAME = 'Olympus';
 const GAME_TITLE = 'God of War III Remastered';
@@ -138,6 +139,9 @@ function TabButton({ label, glyph, active, onPress }: { label: string; glyph: st
 
 export default function App() {
   const clock = useClock();
+  // Window insets (Dynamic Island, home indicator, iPhone Duo's camera and bars), not a fixed iPhone's.
+  const insets = useSafeAreaInsets();
+  const tabBottom = Math.max(insets.bottom - 8, 12);
   const [tab, setTab] = useState<Tab>('home');
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState('');
@@ -280,7 +284,7 @@ export default function App() {
       <View style={[styles.backdropFade, { top: 260, opacity: 0.75 }]} />
       <View style={[styles.backdropFade, { top: 340, opacity: 1 }]} />
 
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, { paddingTop: insets.top, paddingLeft: 20 + insets.left, paddingRight: 20 + insets.right }]}>
         <View style={styles.brand}>
           <Image source={HELMET} style={styles.brandIcon} />
           <Text style={styles.brandText}>{APP_NAME}</Text>
@@ -292,7 +296,11 @@ export default function App() {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.content,
+          { paddingLeft: 20 + insets.left, paddingRight: 20 + insets.right, paddingBottom: 94 + tabBottom },
+        ]}>
         {tab === 'home' ? (
           <>
             <View style={styles.hero}>
@@ -483,7 +491,7 @@ export default function App() {
         ) : null}
       </ScrollView>
 
-      <View style={styles.tabBar}>
+      <View style={[styles.tabBar, { left: 16 + insets.left, right: 16 + insets.right, bottom: tabBottom }]}>
         <TabButton label="Home" glyph="⌂" active={tab === 'home'} onPress={() => setTab('home')} />
         <TabButton label="Setup" glyph="⚙︎" active={tab === 'setup'} onPress={() => setTab('setup')} />
         <TabButton label="System" glyph="≡" active={tab === 'system'} onPress={() => setTab('system')} />
@@ -497,14 +505,14 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: color.bg },
   backdrop: { position: 'absolute', top: 0, left: 0, right: 0, height: 460, width: '100%', opacity: 0.55 },
   backdropFade: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: color.bg },
-  topBar: { paddingTop: 58, paddingHorizontal: 20, paddingBottom: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  topBar: { paddingBottom: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   brand: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   brandIcon: { width: 30, height: 30, borderRadius: 8 },
   brandText: { color: color.text, fontSize: 20, fontWeight: '800', letterSpacing: 1 },
   topRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   topText: { color: color.text, fontSize: 15 },
   clock: { color: color.text, fontSize: 16, fontWeight: '600', fontVariant: ['tabular-nums'] },
-  content: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 120, gap: 14 },
+  content: { paddingTop: 18, gap: 14 },
   hero: { flexDirection: 'row', gap: 16, alignItems: 'flex-end' },
   cover: { width: 132, height: 132, borderRadius: 18, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' },
   heroInfo: { flex: 1, gap: 6, paddingBottom: 4 },
@@ -562,9 +570,6 @@ const styles = StyleSheet.create({
   monoText: { color: '#cfcdd6', fontFamily: 'Menlo', fontSize: 10.5 },
   tabBar: {
     position: 'absolute',
-    left: 16,
-    right: 16,
-    bottom: 26,
     flexDirection: 'row',
     backgroundColor: 'rgba(18,18,24,0.96)',
     borderRadius: 24,

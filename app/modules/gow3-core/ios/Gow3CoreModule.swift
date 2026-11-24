@@ -281,6 +281,9 @@ public class Gow3CoreModule: Module {
       guard let url = URL(string: "stikdebug://enable-jit") else { return false }
       return UIApplication.shared.canOpenURL(url)
     }.runOnQueue(.main)
+    AsyncFunction("safeAreaInsets") { () -> [String: Double] in
+      Gow3SafeArea.current()
+    }.runOnQueue(.main)
 
     // Opens StikDebug with the universal JIT script for this process, waits for the debugger, then
     // has it prepare a `poolMb` MiB JIT pool and detach. Resolves with gow3_jit_setup's result.

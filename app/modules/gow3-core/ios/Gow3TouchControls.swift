@@ -7,6 +7,10 @@
 import GameController
 import UIKit
 
+private extension CGRect {
+  func shifted(by move: CGPoint) -> CGRect { offsetBy(dx: move.x, dy: move.y) }
+}
+
 @_silgen_name("gow3_touch_pad")
 private func gow3_touch_pad(_ buttons: UInt32, _ sticks: UInt32)
 
@@ -260,12 +264,102 @@ final class Gow3TouchControlsView: UIView {
     if newWindow == nil { releaseAll() }
   }
 
+  // MARK: iPhone Duo: what the hardware reserves inside this view (UIKit 27.1)
+
+  /// Cameras (occlusions) and the fold (divisions), in this view's coordinates. They are read in
+  /// updateConstraints(), which UIKit runs again when a region becomes active or inactive, and
+  /// applied in layoutSubviews(). Both stay empty before iOS 27.1.
+  private var occlusions: [CGRect] = []
+  private var divisions: [CGRect] = []
+
+  override func didMoveToWindow() {
+    super.didMoveToWindow()
+    setNeedsUpdateConstraints()
+  }
+
+  override func updateConstraints() {
+    super.updateConstraints()
+    guard #available(iOS 27.1, *) else { return }
+    let occluded = reservedRegions(kind: .occlusion).map(\.frame)
+    let divided = reservedRegions(kind: .division).map(\.frame)
+    guard occluded != occlusions || divided != divisions else { return }
+    occlusions = occluded
+    divisions = divided
+    setNeedsLayout()
+  }
+
+  /// Moves controls only as far as it takes to leave a camera or the fold clear (Apple: favor small
+  /// adjustments over rearranging). A control takes the shortest way that keeps it inside the view
+  /// (along the fold's normal for a fold, which can run either way). A control it lands on is pushed
+  /// on, so a nudge never lays one control over another; a control moved for a region stays put
+  /// (pinned), or the push would undo the nudge. A few passes settle it.
+  private func clearReservedRegions() {
+    guard !occlusions.isEmpty || !divisions.isEmpty else { return }
+    let controls = (buttons as [UIView]) + [leftStick, rightStick, toggle, reset, smaller, larger]
+    let home = controls.map(\.frame) // where the layout put them
+    var frames = home
+    var pinned = Set<Int>()
+    for _ in 0..<6 {
+      var moved = false
+      for i in frames.indices {
+        let before = frames[i]
+        for region in occlusions where frames[i].intersects(region) {
+          frames[i] = frames[i].shifted(by: shortestMove(of: frames[i], clearing: region, horizontal: true, vertical: true))
+        }
+        for region in divisions where frames[i].intersects(region) {
+          let sideBySide = region.height >= region.width // a vertical fold splits the view left and right
+          frames[i] = frames[i].shifted(by: shortestMove(of: frames[i], clearing: region, horizontal: sideBySide, vertical: !sideBySide))
+        }
+        if frames[i] != before {
+          pinned.insert(i)
+          moved = true
+        }
+      }
+      // Only overlaps the nudge made: controls that overlapped in the layout (R3 on its stick) stay so.
+      for i in frames.indices {
+        for j in frames.indices where j != i && !pinned.contains(j) && frames[i].intersects(frames[j]) && !home[i].intersects(home[j]) {
+          let push = pushApart(frames[j], from: frames[i])
+          if bounds.contains(frames[j].shifted(by: push)) {
+            frames[j] = frames[j].shifted(by: push)
+            moved = true
+          }
+        }
+      }
+      if !moved { break }
+    }
+    for (control, frame) in zip(controls, frames) { control.frame = frame }
+  }
+
+  /// Clearance beyond a region's edge, so rounding can't leave a control touching it.
+  private static let clearance: CGFloat = 0.5
+
+  private func shortestMove(of frame: CGRect, clearing region: CGRect, horizontal: Bool, vertical: Bool) -> CGPoint {
+    let c = Self.clearance
+    var moves: [CGPoint] = []
+    if horizontal { moves += [CGPoint(x: region.minX - frame.maxX - c, y: 0), CGPoint(x: region.maxX - frame.minX + c, y: 0)] }
+    if vertical { moves += [CGPoint(x: 0, y: region.minY - frame.maxY - c), CGPoint(x: 0, y: region.maxY - frame.minY + c)] }
+    let inside = moves.filter { bounds.contains(frame.shifted(by: $0)) }
+    return inside.min { abs($0.x) + abs($0.y) < abs($1.x) + abs($1.y) } ?? .zero
+  }
+
+  /// How far `frame` must move, along the axis it overlaps `other` least, to clear it.
+  private func pushApart(_ frame: CGRect, from other: CGRect) -> CGPoint {
+    let overlap = frame.intersection(other)
+    let c = Self.clearance
+    if overlap.width <= overlap.height {
+      return CGPoint(x: frame.midX < other.midX ? -(overlap.width + c) : overlap.width + c, y: 0)
+    }
+    return CGPoint(x: 0, y: frame.midY < other.midY ? -(overlap.height + c) : overlap.height + c)
+  }
+
   override func layoutSubviews() {
     super.layoutSubviews()
     let w = bounds.width, h = bounds.height
     let inset = safeAreaInsets
     let l = max(inset.left, 16), r = max(inset.right, 16), t = max(inset.top, 10), b = max(inset.bottom, 12)
-    let s = min(h / 400, 1.25)
+    // Height sets the size on a landscape phone. When the window is narrow or squarer (iPhone Duo,
+    // a portrait phone) width takes over: the two clusters need about 654 pt at scale 1.
+    let s = max(0.4, min(h / 400, (w - l - r) / 700, 1.25))
 
     let stick = 130 * s
     leftStick.frame = CGRect(x: l + 24 * s, y: h - b - stick - 16 * s, width: stick, height: stick)
@@ -316,6 +410,7 @@ final class Gow3TouchControlsView: UIView {
                               width: f.width * scale, height: f.height * scale)
       }
     }
+    clearReservedRegions()
   }
 
   /// Touches belong to this view only on a control (or near a stick), so the rest of the screen
