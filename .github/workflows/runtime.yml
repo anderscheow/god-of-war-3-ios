@@ -19,7 +19,7 @@ jobs:
         run: native/runtime/tests/run.sh
 
   ios-compile:
-    runs-on: macos-26
+    runs-on: xcode-27 # the same iOS 27 SDK as ios.yml, so a break shows here first
     steps:
       - uses: actions/checkout@v5
       - uses: maxim-lobanov/setup-xcode@v1

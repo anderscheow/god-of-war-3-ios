@@ -8,6 +8,8 @@ Users supply their own legally dumped game (CUSA01623 / CUSA01715 / CUSA01720, u
 
 ## Constraints
 - Target device: base iPhone 17 (8 GB RAM) on iOS 27. Distributed by sideloading only (SideStore/AltStore); the App Store is not possible because JIT needs a debugger.
+- iPhone Duo (foldable) is also a target. Its window resizes as the device folds, rotates and moves between the inner and outer display, so layout follows view/scene bounds, safe-area insets and `UIView.reservedRegions` (the fold and cameras), never `UIScreen.main`, device orientation or idiom.
+  This needs the iOS 27.1+ SDK: CI runs on the `xcode-27` runner image and fails below 27.1. The scene life cycle (TN3187) is mandatory on that SDK; `native/scripts/check-info-plist.sh` checks it on every build. Audit and plan: docs/2026-11-24-ios27-duo-audit.md.
 - JIT comes from StikDebug or a built-in StikJIT-style helper. On iOS 27 the helper can pair the phone without a computer, as Madeira does.
 - iOS uses 16 KB pages. The gow3_android runtime says it needs 4 KB pages, so this is a known porting problem.
 - One process only. iOS apps can't spawn processes.

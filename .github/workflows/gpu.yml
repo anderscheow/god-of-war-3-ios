@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   ios-compile:
-    runs-on: macos-26
+    runs-on: xcode-27 # the same iOS 27 SDK as ios.yml, so a break shows here first
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v5

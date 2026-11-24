@@ -50,18 +50,24 @@ final class Gow3GameViewController: UIViewController, UIGestureRecognizerDelegat
     dismiss(animated: false)
   }
 
+  /// The screen this view is on right now. Never `UIScreen.main` or a stored screen: on iPhone Duo the
+  /// scene moves between the inner and outer display as the device folds.
+  private var screen: UIScreen? { view.window?.windowScene?.screen }
+
   /// Hands the layer, its pixel size and the screen's maximum refresh rate to the GPU library.
   func publishSurface() {
     let layer = metalView.metalLayer
     let size = layer.drawableSize
-    let hz = view.window?.screen.maximumFramesPerSecond ?? UIScreen.main.maximumFramesPerSecond
+    // 0 keeps the rate the GPU library already has (60 until a screen has reported one).
+    let hz = screen?.maximumFramesPerSecond ?? 0
     gow3_gpu_set_surface(Unmanaged.passUnretained(layer).toOpaque(), UInt32(size.width), UInt32(size.height), UInt32(hz))
   }
 
   override var prefersStatusBarHidden: Bool { true }
   override var prefersHomeIndicatorAutoHidden: Bool { true }
-  // The game is 16:9: landscape only while this view is up (app.json allows every orientation).
-  override var supportedInterfaceOrientations: UIInterfaceOrientationMask { .landscape }
+  // No orientation lock: on iPhone Duo the window's shape, not the device orientation, decides the
+  // layout, so everything below follows view.bounds. The game still opens in landscape; that only
+  // picks the starting orientation and does not stop the window from rotating or resizing.
   override var preferredInterfaceOrientationForPresentation: UIInterfaceOrientation { .landscapeRight }
 
   // The drawable follows the view in pixels (MoltenVK sizes the swapchain from it), at most 2x:
@@ -69,7 +75,7 @@ final class Gow3GameViewController: UIViewController, UIGestureRecognizerDelegat
   // pass and the present more than twice as large, for no sharper picture.
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
-    let scale = min(view.window?.screen.nativeScale ?? UIScreen.main.nativeScale, 2)
+    let scale = min(screen?.nativeScale ?? 2, 2)
     metalView.metalLayer.contentsScale = scale
     metalView.metalLayer.drawableSize = CGSize(width: view.bounds.width * scale, height: view.bounds.height * scale)
     if feedsGame { publishSurface() }
